@@ -1,3 +1,4 @@
+-- StarterPlayerScripts/RoundUI (LocalScript)
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -7,10 +8,22 @@ local RoundEvent = Remotes:WaitForChild("RoundEvent")
 
 local CutUI = player:WaitForChild("PlayerGui"):WaitForChild("CutUI")
 local roundGui = player:WaitForChild("PlayerGui"):WaitForChild("RoundUI")
+local lobbyGui = player:WaitForChild("PlayerGui"):WaitForChild("LobbyUI")
+local afkButton = lobbyGui:WaitForChild("LobbyPanel"):WaitForChild("AfkButton")
+local joinState = afkButton:WaitForChild("State")
 local revealFrame = roundGui:WaitForChild("RevealPanel")
 local statusLabel = roundGui:WaitForChild("Status")
 local rankingLabel = revealFrame:WaitForChild("Ranking")
 
+-- ─── Join / Lobby Toggle Button Setup ────────────────────────────────────────
+afkButton.MouseButton1Click:Connect(function()
+	local isPlaying = joinState.Value -- Default state: player wants to join rounds
+
+	-- Fire state change to the server
+	RoundEvent:FireServer("TOGGLE_PARTICIPATION", isPlaying)
+end)
+
+-- ─── Helpers ──────────────────────────────────────────────────────────────────
 local function addRevealRow(name: string, accuracy: number, rank: number)
 	local medal = rank == 1 and "🥇" or rank == 2 and "🥈" or "🥉"
 
@@ -39,6 +52,7 @@ local function resetUI()
 	clearRevealRows()
 end
 
+-- ─── Event Handling ───────────────────────────────────────────────────────────
 RoundEvent.OnClientEvent:Connect(function(msg, data)
 	if msg == "ROUND_START" then
 		resetUI()
@@ -49,7 +63,7 @@ RoundEvent.OnClientEvent:Connect(function(msg, data)
 	elseif msg == "WAIT_ROUND" then
 		resetUI()
 		statusLabel.Visible = true
-		statusLabel.Text = "⏳  Round in progress... Waiting for next intermission"
+		statusLabel.Text = "⏳  Waiting in lobby for next round..."
 		statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
 	elseif msg == "INTERMISSION" then
 		statusLabel.Visible = true

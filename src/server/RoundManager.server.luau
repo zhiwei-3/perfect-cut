@@ -24,6 +24,7 @@ local INTERMISSION = 10
 local roundActive = false
 local roundPlayers = {}
 local lateJoiners = {}
+local spectators = {} -- Tracks players who opted to stay in lobby
 local playerStations = {}
 local playerScores = {}
 local playerLocked = {}
@@ -35,6 +36,20 @@ local function teleportToLobby(plr: Player)
 		plr.Character.HumanoidRootPart.CFrame = lobbySpawn.CFrame + Vector3.new(0, 3, 0)
 	end
 end
+
+-- ─── Toggle Spectate Request Listener ───────────────────────────────────────
+RoundEvent.OnServerEvent:Connect(function(plr, msg, isPlaying)
+	if msg == "TOGGLE_PARTICIPATION" then
+		if isPlaying == false then
+			spectators[plr] = true
+			RoundEvent:FireClient(plr, "WAIT_ROUND", nil)
+			print(string.format("[RoundManager] %s opted out (staying in lobby)", plr.Name))
+		else
+			spectators[plr] = nil
+			print(string.format("[RoundManager] %s opted in (will join next round)", plr.Name))
+		end
+	end
+end)
 
 Players.PlayerAdded:Connect(function(plr)
 	plr.CharacterAdded:Connect(function()
@@ -50,6 +65,7 @@ end)
 
 Players.PlayerRemoving:Connect(function(plr)
 	lateJoiners[plr] = nil
+	spectators[plr] = nil
 	playerStations[plr] = nil
 	playerScores[plr] = nil
 	playerLocked[plr] = nil
@@ -280,13 +296,14 @@ local function startRound()
 
 	roundPlayers = {}
 	for _, plr in Players:GetPlayers() do
-		if not lateJoiners[plr] then
+		-- Only include players who joined before intermission AND did not opt out via button
+		if not lateJoiners[plr] and not spectators[plr] then
 			table.insert(roundPlayers, plr)
 		end
 	end
 
 	if #roundPlayers == 0 then
-		print("[RoundManager] Aborting round: no eligible players")
+		print("[RoundManager] Aborting round: no eligible playing players")
 		clearRound()
 		return
 	end
@@ -295,7 +312,11 @@ local function startRound()
 	assignObjects()
 	fireRound("ROUND_START", nil)
 
+	-- Notify late joiners & spectators to wait
 	for plr in lateJoiners do
+		RoundEvent:FireClient(plr, "WAIT_ROUND", nil)
+	end
+	for plr in spectators do
 		RoundEvent:FireClient(plr, "WAIT_ROUND", nil)
 	end
 
