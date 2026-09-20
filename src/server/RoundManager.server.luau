@@ -1,3 +1,4 @@
+-- src/server/RoundManager.server.luau
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local ServerScriptService = game:GetService("ServerScriptService")
@@ -12,6 +13,14 @@ local CutEvent = Remotes:WaitForChild("CutEvent")
 local TriggerEvent = Remotes:WaitForChild("TriggerEvent")
 local AccuracyEvent = ServerScriptService:WaitForChild("AccuracyEvent")
 
+-- Get or create EndPracticeEvent BindableEvent
+local EndPracticeEvent = ServerScriptService:FindFirstChild("EndPracticeEvent")
+if not EndPracticeEvent then
+	EndPracticeEvent = Instance.new("BindableEvent")
+	EndPracticeEvent.Name = "EndPracticeEvent"
+	EndPracticeEvent.Parent = ServerScriptService
+end
+
 local CAMERA_FOV = 70
 local SCREEN_FILL = 0.3
 local CAMERA_HEIGHT_OFFSET = 0.3
@@ -24,7 +33,7 @@ local INTERMISSION = 10
 local roundActive = false
 local roundPlayers = {}
 local lateJoiners = {}
-local spectators = {} -- Tracks players who opted to stay in lobby
+local spectators = {}
 local playerStations = {}
 local playerScores = {}
 local playerLocked = {}
@@ -37,16 +46,13 @@ local function teleportToLobby(plr: Player)
 	end
 end
 
--- ─── Toggle Spectate Request Listener ───────────────────────────────────────
 RoundEvent.OnServerEvent:Connect(function(plr, msg, isPlaying)
 	if msg == "TOGGLE_PARTICIPATION" then
 		if isPlaying == false then
 			spectators[plr] = true
 			RoundEvent:FireClient(plr, "WAIT_ROUND", nil)
-			print(string.format("[RoundManager] %s opted out (staying in lobby)", plr.Name))
 		else
 			spectators[plr] = nil
-			print(string.format("[RoundManager] %s opted in (will join next round)", plr.Name))
 		end
 	end
 end)
@@ -59,7 +65,6 @@ Players.PlayerAdded:Connect(function(plr)
 	if roundActive then
 		lateJoiners[plr] = true
 		RoundEvent:FireClient(plr, "WAIT_ROUND", nil)
-		print("[RoundManager] Late joiner held in lobby:", plr.Name)
 	end
 end)
 
@@ -79,7 +84,6 @@ Players.PlayerRemoving:Connect(function(plr)
 	local index = table.find(roundPlayers, plr)
 	if index then
 		table.remove(roundPlayers, index)
-		print(string.format("[RoundManager] %s left mid-round.", plr.Name))
 	end
 end)
 
@@ -296,10 +300,14 @@ local function startRound()
 
 	roundPlayers = {}
 	for _, plr in Players:GetPlayers() do
-		-- Only include players who joined before intermission AND did not opt out via button
 		if not lateJoiners[plr] and not spectators[plr] then
 			table.insert(roundPlayers, plr)
 		end
+	end
+
+	-- Destroy practice stations for players entering this round
+	for _, plr in roundPlayers do
+		EndPracticeEvent:Fire(plr, true)
 	end
 
 	if #roundPlayers == 0 then
@@ -312,7 +320,6 @@ local function startRound()
 	assignObjects()
 	fireRound("ROUND_START", nil)
 
-	-- Notify late joiners & spectators to wait
 	for plr in lateJoiners do
 		RoundEvent:FireClient(plr, "WAIT_ROUND", nil)
 	end

@@ -21,6 +21,7 @@ local CutControls = CutUI:WaitForChild("CutControls")
 local ResetButton = CutControls:WaitForChild("ResetButton")
 local CutButton = CutControls:WaitForChild("CutButton")
 local ClearButton = CutControls:WaitForChild("ClearButton")
+local ExitButton = CutControls:FindFirstChild("ExitButton")
 
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "CutPreview"
@@ -334,10 +335,15 @@ CutButton.MouseButton1Click:Connect(function()
 	fireCut()
 end)
 
+ExitButton.MouseButton1Click:Connect(function()
+	RoundEvent:FireServer("EXIT_PRACTICE")
+end)
+
 CutEvent.OnClientEvent:Connect(function(msg, ...)
 	if msg == "ASSIGN_OBJECT" then
 		activeObject = ...
 		hasCommitted = false
+		hasFiredCut = false -- Reset state to allow slicing the newly spawned object
 		originalCFrame = activeObject:IsA("Model") and activeObject:GetPivot() or activeObject.CFrame
 	elseif msg == "CUT_RESULT" then
 		local accuracy = ...
